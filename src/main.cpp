@@ -1,10 +1,12 @@
 #include <iostream>
 #include <string>
+#include <cstdlib>
 #include <vector>
 #include <ranges>
 #include <set>
+#include <filesystem>
 
-std::vector<std::string> split(const std::string& str, char delimiter) {
+std::vector<std::string> split(const std::string& str, const char delimiter) {
   std::vector<std::string> tokens;
   size_t start{0};
   size_t end{str.find(delimiter)};
@@ -15,6 +17,25 @@ std::vector<std::string> split(const std::string& str, char delimiter) {
   }
   tokens.push_back(str.substr(start));
   return tokens;
+}
+
+std::vector<std::filesystem::path> get_system_path() {
+  const char* path_env = std::getenv("PATH");
+  if (!path_env) return {};
+  std::string path_str(path_env);
+
+#ifdef _WIN32
+  const char delimiter = ';';
+#else 
+  const char delimiter = ':';
+#endif
+
+  auto path_strings = split(path_str, delimiter);
+  std::vector<std::filesystem::path> paths;
+  for (const auto& p : path_strings) {
+    paths.emplace_back(p);
+  }
+  return paths;
 }
 
 void exit_command(std::vector<std::string>& tokens) {
@@ -46,14 +67,38 @@ void echo_command(std::vector<std::string>& tokens) {
   }
 }
 
+bool look_for_file_matches(const std::string& filename,
+                           const std::vector<std::filesystem::path>& paths) {
+  for (const auto& dir : paths) {
+    std::filesystem::path candidate = dir / filename;
+    if (std::filesystem::exists(candidate)) {
+      std::cout << filename << " is "  << candidate.string() << "\n";
+      return true;
+    }
+  }
+  return false;
+}
+
 void type_command(std::vector<std::string>& tokens, const std::set<std::string_view>& supported_commands) {
-  auto fn_builtin = tokens.back();
   if (tokens.size() < 2) {
     std::cerr << ": not found";
-  } else if (supported_commands.find(tokens.back()) != supported_commands.end()) {
-    std::cout << fn_builtin << " is a shell builtin\n";
-  } else {
-    std::cerr << fn_builtin << ": not found\n";
+    return;
+  }
+
+  const std::string& query = tokens.back();
+
+  // check builtins
+  if (supported_commands.find(tokens.back()) != supported_commands.end()) {
+    std::cout << query << " is a shell builtin\n";
+  }
+
+  // check executables in PATH
+  auto paths = get_system_path();
+  bool found = look_for_file_matches(query, paths);
+
+  // not found anywhere
+  if (!found) {
+    std::cerr << query << ": not found\n";
   }
 }
 

@@ -90,6 +90,7 @@ void type_command(std::vector<std::string>& tokens, const std::set<std::string_v
   // check builtins
   if (supported_commands.find(tokens.back()) != supported_commands.end()) {
     std::cout << query << " is a shell builtin\n";
+    return;
   }
 
   // check executables in PATH

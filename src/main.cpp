@@ -6,19 +6,11 @@
 #include <set>
 #include <filesystem>
 
-enum Amode {
-  kF_OK = 0,
-  kR_OK = 1,
-  kW_OK = 2,
-  kX_OK = 3
-};
-
 bool is_executable(const std::filesystem::path& path) {
     if (!std::filesystem::exists(path) || std::filesystem::is_directory(path))
         return false;
 
 #ifdef _WIN32
-    // Windows considers files executable if they have these extensions.
     static const std::vector<std::string> exts = {".exe", ".bat", ".cmd", ".com"};
     std::string ext = path.extension().string();
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
@@ -93,22 +85,6 @@ void echo_command(std::vector<std::string>& tokens) {
   }
 }
 
-int access(const std::filesystem::path& path, const Amode& mode) {
-  auto a = std::filesystem::status(path).permissions();
-  switch (mode) {
-    case kF_OK:
-        return std::filesystem::perms::unknown!=a? 0 : -1;
-    case kR_OK:
-        return (std::filesystem::perms::owner_read & a) == std::filesystem::perms::owner_read ? 0 : -1;
-    case kW_OK:
-        return (std::filesystem::perms::owner_read & a) == std::filesystem::perms::owner_read  && (std::filesystem::perms::owner_write & a) == std::filesystem::perms::owner_write ? 0 : -1;
-    case kX_OK:
-        return (std::filesystem::perms::owner_read & a) == std::filesystem::perms::owner_read  && (std::filesystem::perms::owner_exec & a) == std::filesystem::perms::owner_exec ? 0 : -1;
-    default:
-        return -1;
-  }
-}
-
 bool look_for_file_matches(const std::string& filename,
                            const std::vector<std::filesystem::path>& paths) {
     for (const auto& dir : paths) {
@@ -118,7 +94,6 @@ bool look_for_file_matches(const std::string& filename,
             return true;
         }
 #ifdef _WIN32
-        // On Windows, also try with ".exe" if not specified
         std::filesystem::path exe_candidate = candidate;
         exe_candidate += ".exe";
         if (is_executable(exe_candidate)) {

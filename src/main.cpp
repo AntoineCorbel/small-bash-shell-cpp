@@ -17,14 +17,20 @@ std::vector<std::string> split(const std::string& str, char delimiter) {
 
 void exit_command(const std::string& command) {
   auto tokens = split(command, ' ');
+  std::cout << "Command --> ";
+  for (const auto& token : tokens) {
+    std::cout << token << " ";
+  }
+  std::cout << "\n";
+
   if (tokens.size() < 2) {
     exit(0);
   } else if (tokens.size() == 2) {
     std::string exit_code = tokens.back();
-    if (exit_code.compare("1")) {
-      exit(1);
+    if (exit_code == "1") {
+      std::exit(1);
     } else {
-      exit(0);
+      std::exit(0);
     }
   } else {
     throw std::runtime_error("Error code not handled yet.");

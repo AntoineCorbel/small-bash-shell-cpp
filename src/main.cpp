@@ -13,6 +13,24 @@ enum Amode {
   kX_OK = 3
 };
 
+bool is_executable(const std::filesystem::path& path) {
+    if (!std::filesystem::exists(path) || std::filesystem::is_directory(path))
+        return false;
+
+#ifdef _WIN32
+    // Windows considers files executable if they have these extensions.
+    static const std::vector<std::string> exts = {".exe", ".bat", ".cmd", ".com"};
+    std::string ext = path.extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    return std::find(exts.begin(), exts.end(), ext) != exts.end();
+#else
+    // On POSIX systems, check execute permission bit.
+    auto perms = std::filesystem::status(path).permissions();
+    return (perms & std::filesystem::perms::owner_exec) != std::filesystem::perms::none ||
+           (perms & std::filesystem::perms::group_exec) != std::filesystem::perms::none ||
+           (perms & std::filesystem::perms::others_exec) != std::filesystem::perms::none;
+#endif
+}
 
 std::vector<std::string> split(const std::string& str, const char delimiter) {
   std::vector<std::string> tokens;
@@ -93,14 +111,23 @@ int access(const std::filesystem::path& path, const Amode& mode) {
 
 bool look_for_file_matches(const std::string& filename,
                            const std::vector<std::filesystem::path>& paths) {
-  for (const auto& dir : paths) {
-    std::filesystem::path candidate = dir / filename;
-    if (std::filesystem::exists(candidate) && access(candidate, kX_OK)) {
-      std::cout << filename << " is "  << candidate.string() << "\n";
-      return true;
+    for (const auto& dir : paths) {
+        std::filesystem::path candidate = dir / filename;
+        if (is_executable(candidate)) {
+            std::cout << filename << " is " << candidate.string() << "\n";
+            return true;
+        }
+#ifdef _WIN32
+        // On Windows, also try with ".exe" if not specified
+        std::filesystem::path exe_candidate = candidate;
+        exe_candidate += ".exe";
+        if (is_executable(exe_candidate)) {
+            std::cout << filename << " is " << exe_candidate.string() << "\n";
+            return true;
+        }
+#endif
     }
-  }
-  return false;
+    return false;
 }
 
 void type_command(std::vector<std::string>& tokens, const std::set<std::string_view>& supported_commands) {

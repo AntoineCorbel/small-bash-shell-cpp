@@ -17,12 +17,6 @@ std::vector<std::string> split(const std::string& str, char delimiter) {
 
 void exit_command(const std::string& command) {
   auto tokens = split(command, ' ');
-  std::cout << "Command --> ";
-  for (const auto& token : tokens) {
-    std::cout << token << " ";
-  }
-  std::cout << "\n";
-
   if (tokens.size() < 2) {
     exit(0);
   } else if (tokens.size() == 2) {

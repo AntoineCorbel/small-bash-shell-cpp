@@ -46,12 +46,23 @@ void echo_command(std::vector<std::string>& tokens) {
   }
 }
 
+void type_command(std::vector<std::string>& tokens, const std::set<std::string_view>& supported_commands) {
+  auto fn_builtin = tokens.back();
+  if (tokens.size() < 2) {
+    std::cerr << ": not found";
+  } else if (supported_commands.find(tokens.back()) != supported_commands.end()) {
+    std::cout << fn_builtin << " is a shell builtin\n";
+  } else {
+    std::cerr << fn_builtin << ": not found\n";
+  }
+}
+
 int main() {
   // Flush after every std::cout / std:cerr
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
 
-  std::set<std::string_view> supported_commands{"exit","echo"};
+  std::set<std::string_view> supported_commands{"exit","echo","type"};
 
   // Read-Eval-Print-Loop (REPL)
   while (true) {
@@ -65,12 +76,17 @@ int main() {
       std::cerr << command << ": not found\n";
     }
 
-    if (fn_name.contains("exit")) {
+    if (fn_name == "exit") {
       exit_command(tokens);
     }
 
-    if (fn_name.contains("echo")) {
+    if (fn_name == "echo") {
       echo_command(tokens);
     }
+
+    if (fn_name == "type") {
+      type_command(tokens, supported_commands);
+    }
+
   }
 }

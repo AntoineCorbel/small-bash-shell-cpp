@@ -188,8 +188,12 @@ void non_builtin_command(std::vector<std::string>& tokens) {
   return;
 }
 
+void pwd_command() {
+  std::cout << std::filesystem::current_path().string() << "\n";
+}
+
 static const std::set<std::string_view> supported_commands{"exit", "echo",
-                                                               "type"};
+                                                               "type","pwd"};
 
 int main() {
   // Flush after every std::cout / std:cerr
@@ -219,6 +223,10 @@ int main() {
 
     if (fn_name == "type") {
       type_command(tokens, supported_commands);
+    }
+
+    if (fn_name == "pwd") {
+      pwd_command();
     }
 
     // look for the file in PATH and execute if possible

@@ -5,6 +5,29 @@
 #include <ranges>
 #include <set>
 #include <filesystem>
+#include <cstring>
+#include <sys/wait.h>
+#include <unistd.h>
+
+
+struct ProcessInfo {
+  bool found = false;
+  bool executable = false;
+  std::string path{};
+};
+
+std::vector<std::string> split(const std::string& str, const char delimiter) {
+  std::vector<std::string> tokens;
+  size_t start{0};
+  size_t end{str.find(delimiter)};
+  while (end != std::string::npos) {
+    tokens.push_back(str.substr(start, end - start));
+    start = end + 1;
+    end = str.find(delimiter, start);
+  }
+  tokens.push_back(str.substr(start));
+  return tokens;
+}
 
 bool is_executable(const std::filesystem::path& path) {
     if (!std::filesystem::exists(path) || std::filesystem::is_directory(path))
@@ -24,18 +47,6 @@ bool is_executable(const std::filesystem::path& path) {
 #endif
 }
 
-std::vector<std::string> split(const std::string& str, const char delimiter) {
-  std::vector<std::string> tokens;
-  size_t start{0};
-  size_t end{str.find(delimiter)};
-  while (end != std::string::npos) {
-    tokens.push_back(str.substr(start, end - start));
-    start = end + 1;
-    end = str.find(delimiter, start);
-  }
-  tokens.push_back(str.substr(start));
-  return tokens;
-}
 
 std::vector<std::filesystem::path> get_system_path() {
   const char* path_env = std::getenv("PATH");
@@ -85,25 +96,34 @@ void echo_command(std::vector<std::string>& tokens) {
   }
 }
 
-bool look_for_file_matches(const std::string& filename,
-                           const std::vector<std::filesystem::path>& paths) {
-    for (const auto& dir : paths) {
-        std::filesystem::path candidate = dir / filename;
-        if (is_executable(candidate)) {
-            std::cout << filename << " is " << candidate.string() << "\n";
-            return true;
-        }
-#ifdef _WIN32
-        std::filesystem::path exe_candidate = candidate;
-        exe_candidate += ".exe";
-        if (is_executable(exe_candidate)) {
-            std::cout << filename << " is " << exe_candidate.string() << "\n";
-            return true;
-        }
-#endif
+ProcessInfo
+look_for_file_matches(const std::string& filename,
+                      const std::vector<std::filesystem::path>& paths) {
+
+  ProcessInfo process;
+  for (const auto& dir : paths) {
+    std::filesystem::path candidate = dir / filename;
+    if (is_executable(candidate)) {
+      // std::cout << filename << " is " << candidate.string() << "\n";
+      process.found = true;
+      process.executable = true;
+      process.path = candidate.string();
+      return process;
     }
-    return false;
+#ifdef _WIN32
+    std::filesystem::path exe_candidate = candidate;
+    exe_candidate += ".exe";
+    if (is_executable(exe_candidate)) {
+      std::cout << filename << " is " << exe_candidate.string() << "\n";
+      process.found = true;
+      process.path = exe_candidate.string();
+      return process;
+    }
+#endif
+  }
+  return process;
 }
+
 
 void type_command(std::vector<std::string>& tokens, const std::set<std::string_view>& supported_commands) {
   if (tokens.size() < 2) {
@@ -121,20 +141,60 @@ void type_command(std::vector<std::string>& tokens, const std::set<std::string_v
 
   // check executables in PATH
   auto paths = get_system_path();
-  bool found = look_for_file_matches(query, paths);
+  auto query_process_info = look_for_file_matches(query, paths);
 
-  // not found anywhere
-  if (!found) {
+  if (!query_process_info.found) {
     std::cerr << query << ": not found\n";
+    return;
+  }
+
+  if (query_process_info.executable == true) {
+    std::cout << query << " is " << query_process_info.path << "\n";
+    return;
   }
 }
+
+void non_builtin_command(std::vector<std::string>& tokens) {
+  auto paths = get_system_path();
+  if (paths.empty()) {
+    return;
+  }
+  auto process_name = tokens.front(); 
+  auto process = look_for_file_matches(process_name, paths);
+  if (!process.found) {
+    std::cerr << process_name << ": not found\n";
+  }
+  // process was found, exec() it
+  // need the path to be returned too
+  pid_t pid = fork();
+  if (pid < 0) {
+    std::cerr << "Fork failed\n";
+  }
+  if (pid == 0) {
+    // child process
+    // std::cout << "child process, pid " << getpid() << "\n";
+    std::vector<std::string> token_args(tokens.begin()+1, tokens.end());
+    std::vector<char *> args;
+    for (const auto& arg : token_args) {
+      args.push_back((char*)arg.c_str());
+    }
+    execvp(process_name.c_str(), args.data()); // execvp looks for the process in PATH
+  } else {
+    // parent process after child terminated
+    // std::cout << "parent process, pid " << getpid() << "\n";
+    wait(nullptr);
+  }
+  return;
+}
+
+static const std::set<std::string_view> supported_commands{"exit", "echo",
+                                                               "type"};
 
 int main() {
   // Flush after every std::cout / std:cerr
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
 
-  std::set<std::string_view> supported_commands{"exit","echo","type"};
 
   // Read-Eval-Print-Loop (REPL)
   while (true) {
@@ -144,9 +204,9 @@ int main() {
     auto tokens = split(command, ' ');
     auto fn_name = tokens.front();
 
-    if (supported_commands.find(fn_name) == supported_commands.end()) {
-      std::cerr << command << ": not found\n";
-    }
+    // if (supported_commands.find(fn_name) == supported_commands.end()) {
+    //   std::cerr << command << ": not found\n";
+    // }
 
     if (fn_name == "exit") {
       exit_command(tokens);
@@ -160,5 +220,9 @@ int main() {
       type_command(tokens, supported_commands);
     }
 
+    // look for the file in PATH and execute if possible
+    if (supported_commands.find(fn_name) == supported_commands.end()) {
+      non_builtin_command(tokens);
+    }
   }
 }

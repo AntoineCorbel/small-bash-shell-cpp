@@ -6,6 +6,7 @@
 #include <set>
 #include <filesystem>
 #include <cstring>
+#include <charconv>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -65,19 +66,25 @@ std::vector<fs::path> get_system_path() {
 }
 
 void exit_command(std::vector<std::string>& tokens) {
-  // default to successful exit
-  if (tokens.size() < 2) {
-    exit(0);
-  } else if (tokens.size() == 2) {
-    std::string exit_code = tokens.back();
-    if (exit_code == "1") {
-      std::exit(1);
-    } else {
-      std::exit(0);
-    }
-  } else {
-    std::cerr << "Error code not handled yet\n";
+  if (tokens.size() == 1) {
+    std::exit(0);
   }
+
+  if (tokens.size() > 2) {
+    std::cerr << "exit: too many arguments\n";
+    return;
+  }
+
+  const std::string& arg = tokens[1];
+  int code = 0;
+  const char* first = arg.data();
+  const char* last = first + arg.size();
+  auto res = std::from_chars(first, last, code, 10);
+  if (res.ec != std::errc() || res.ptr != last) {
+    std::cerr << "exit: numeric argument required\n";
+    return;
+  }
+  std::exit(code);
 }
 
 void echo_command(const std::vector<std::string>& tokens) {

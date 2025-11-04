@@ -9,6 +9,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+namespace fs = std::filesystem;
+
 
 struct ProcessInfo {
   bool found = false;
@@ -29,8 +31,8 @@ std::vector<std::string> split(const std::string& str, const char delimiter) {
   return tokens;
 }
 
-bool is_executable(const std::filesystem::path& path) {
-    if (!std::filesystem::exists(path) || std::filesystem::is_directory(path))
+bool is_executable(const fs::path& path) {
+    if (!fs::exists(path) || fs::is_directory(path))
         return false;
 
 #ifdef _WIN32
@@ -40,15 +42,15 @@ bool is_executable(const std::filesystem::path& path) {
     return std::find(exts.begin(), exts.end(), ext) != exts.end();
 #else
     // On POSIX systems, check execute permission bit.
-    auto perms = std::filesystem::status(path).permissions();
-    return (perms & std::filesystem::perms::owner_exec) != std::filesystem::perms::none ||
-           (perms & std::filesystem::perms::group_exec) != std::filesystem::perms::none ||
-           (perms & std::filesystem::perms::others_exec) != std::filesystem::perms::none;
+    auto perms = fs::status(path).permissions();
+    return (perms & fs::perms::owner_exec) != fs::perms::none ||
+           (perms & fs::perms::group_exec) != fs::perms::none ||
+           (perms & fs::perms::others_exec) != fs::perms::none;
 #endif
 }
 
 
-std::vector<std::filesystem::path> get_system_path() {
+std::vector<fs::path> get_system_path() {
   const char* path_env = std::getenv("PATH");
   if (!path_env) return {};
   std::string path_str(path_env);
@@ -60,7 +62,7 @@ std::vector<std::filesystem::path> get_system_path() {
 #endif
 
   auto path_strings = split(path_str, delimiter);
-  std::vector<std::filesystem::path> paths;
+  std::vector<fs::path> paths;
   for (const auto& p : path_strings) {
     paths.emplace_back(p);
   }
@@ -98,11 +100,11 @@ void echo_command(std::vector<std::string>& tokens) {
 
 ProcessInfo
 look_for_file_matches(const std::string& filename,
-                      const std::vector<std::filesystem::path>& paths) {
+                      const std::vector<fs::path>& paths) {
 
   ProcessInfo process;
   for (const auto& dir : paths) {
-    std::filesystem::path candidate = dir / filename;
+    fs::path candidate = dir / filename;
     if (is_executable(candidate)) {
       // std::cout << filename << " is " << candidate.string() << "\n";
       process.found = true;
@@ -111,7 +113,7 @@ look_for_file_matches(const std::string& filename,
       return process;
     }
 #ifdef _WIN32
-    std::filesystem::path exe_candidate = candidate;
+    fs::path exe_candidate = candidate;
     exe_candidate += ".exe";
     if (is_executable(exe_candidate)) {
       std::cout << filename << " is " << exe_candidate.string() << "\n";
@@ -180,20 +182,50 @@ void non_builtin_command(std::vector<std::string>& tokens) {
     }
     args.push_back(nullptr);
     execvp(process_name.c_str(), args.data()); // execvp looks for the process in PATH
+    // below is only executed if execvp fails
+    std::perror("execv");
+    std::exit(127);
   } else {
     // parent process after child terminated
     // std::cout << "parent process, pid " << getpid() << "\n";
-    wait(nullptr);
+    int status;
+    waitpid(pid, &status, 0);
   }
   return;
 }
 
 void pwd_command() {
-  std::cout << std::filesystem::current_path().string() << "\n";
+  std::cout << fs::current_path().string() << "\n";
+}
+
+void cd_command(std::vector<std::string> tokens) {
+  std::string previous_dir = fs::current_path().string();
+  // move to home if no args
+  if (tokens.size() == 1) {
+    char* const home_dir = std::getenv("HOME");
+    fs::current_path(home_dir);
+    return;
+  }
+
+  std::string next_dir = tokens.at(1);
+  // tilde leads to home dir
+  if (next_dir == "~" && fs::current_path().string() != std::getenv("HOME")) {
+    fs::current_path(std::getenv("HOME"));
+    return;
+  }
+
+  // general case: parse args
+  if (!fs::is_directory(next_dir)) {
+    std::cerr << "cd: " << next_dir << ": No such file or directory\n"; 
+    return;
+  }
+
+  fs::current_path(tokens.at(1));
+  return;
 }
 
 static const std::set<std::string_view> supported_commands{"exit", "echo",
-                                                               "type","pwd"};
+                                                               "type","pwd","cd"};
 
 int main() {
   // Flush after every std::cout / std:cerr
@@ -227,6 +259,10 @@ int main() {
 
     if (fn_name == "pwd") {
       pwd_command();
+    }
+
+    if (fn_name == "cd") {
+      cd_command(tokens);
     }
 
     // look for the file in PATH and execute if possible

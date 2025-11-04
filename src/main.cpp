@@ -163,6 +163,7 @@ void non_builtin_command(std::vector<std::string>& tokens) {
   auto process = look_for_file_matches(process_name, paths);
   if (!process.found) {
     std::cerr << process_name << ": not found\n";
+    return;
   }
   // process was found, exec() it
   // need the path to be returned too
@@ -221,7 +222,7 @@ int main() {
     }
 
     // look for the file in PATH and execute if possible
-    if (supported_commands.find(fn_name) == supported_commands.end()) {
+    if (supported_commands.find(fn_name) == supported_commands.end() && !fn_name.empty()) {
       non_builtin_command(tokens);
     }
   }

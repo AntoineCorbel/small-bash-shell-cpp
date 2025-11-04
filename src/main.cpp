@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <cstring>
 #include <charconv>
+#include <system_error>
 #include <cerrno>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -220,30 +221,63 @@ void pwd_command() {
 }
 
 void cd_command(std::vector<std::string> tokens) {
-  // TODO: implement a stack to be able to use 'cd -' command
-  std::string previous_dir = fs::current_path().string();
-  // move to home if no args
+  // Reject extra arguments
+  if (tokens.size() > 2) {
+    std::cerr << "cd: too many arguments\n";
+    return;
+  }
+
+  std::error_code ec;
+
+  // No args → cd to HOME
   if (tokens.size() == 1) {
-    char* const home_dir = std::getenv("HOME");
-    fs::current_path(home_dir);
+    const char* home = std::getenv("HOME");
+    if (!home || *home == '\0') {
+      std::cerr << "cd: HOME not set\n";
+      return;
+    }
+    fs::current_path(home, ec);
+    if (ec) {
+      std::cerr << "cd: " << home << ": " << ec.message() << "\n";
+    }
     return;
   }
 
-  std::string next_dir = tokens.at(1);
-  // tilde leads to home dir
-  if (next_dir == "~" && fs::current_path().string() != std::getenv("HOME")) {
-    fs::current_path(std::getenv("HOME"));
+  std::string next_dir = tokens[1];
+
+  // Tilde expansion: ~ or ~/path
+  if (next_dir == "~" || next_dir.rfind("~/", 0) == 0) {
+    const char* home = std::getenv("HOME");
+    if (!home || *home == '\0') {
+      std::cerr << "cd: HOME not set\n";
+      return;
+    }
+    if (next_dir == "~") {
+      fs::current_path(home, ec);
+    } else {
+      fs::path expanded = fs::path(home) / next_dir.substr(2);
+      fs::current_path(expanded, ec);
+    }
+    if (ec) {
+      std::cerr << "cd: " << next_dir << ": " << ec.message() << "\n";
+    }
     return;
   }
 
-  // general case: parse args
+  // General case
+  if (!fs::exists(next_dir)) {
+    std::cerr << "cd: " << next_dir << ": No such file or directory\n";
+    return;
+  }
   if (!fs::is_directory(next_dir)) {
-    std::cerr << "cd: " << next_dir << ": No such file or directory\n"; 
+    std::cerr << "cd: " << next_dir << ": Not a directory\n";
     return;
   }
 
-  fs::current_path(tokens.at(1));
-  return;
+  fs::current_path(next_dir, ec);
+  if (ec) {
+    std::cerr << "cd: " << next_dir << ": " << ec.message() << "\n";
+  }
 }
 
 static const std::set<std::string_view> supported_commands{"exit", "echo",

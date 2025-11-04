@@ -9,6 +9,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "include/tokenizer.h"
+
 namespace fs = std::filesystem;
 
 
@@ -18,18 +20,7 @@ struct ProcessInfo {
   std::string path{};
 };
 
-std::vector<std::string> split(const std::string& str, const char delimiter) {
-  std::vector<std::string> tokens;
-  size_t start{0};
-  size_t end{str.find(delimiter)};
-  while (end != std::string::npos) {
-    tokens.push_back(str.substr(start, end - start));
-    start = end + 1;
-    end = str.find(delimiter, start);
-  }
-  tokens.push_back(str.substr(start));
-  return tokens;
-}
+// removed legacy split(); command parsing is handled by Tokenizer
 
 bool is_executable(const fs::path& path) {
     if (!fs::exists(path) || fs::is_directory(path))
@@ -61,10 +52,14 @@ std::vector<fs::path> get_system_path() {
   const char delimiter = ':';
 #endif
 
-  auto path_strings = split(path_str, delimiter);
   std::vector<fs::path> paths;
-  for (const auto& p : path_strings) {
-    paths.emplace_back(p);
+  // Split PATH manually on the platform delimiter
+  std::size_t start = 0;
+  while (start <= path_str.size()) {
+    std::size_t end = path_str.find(delimiter, start);
+    if (end == std::string::npos) end = path_str.size();
+    paths.emplace_back(path_str.substr(start, end - start));
+    start = end + 1;
   }
   return paths;
 }
@@ -85,17 +80,17 @@ void exit_command(std::vector<std::string>& tokens) {
   }
 }
 
-void echo_command(std::vector<std::string>& tokens) {
+void echo_command(const std::vector<std::string>& tokens) {
   if (tokens.size() < 2) {
-    std::cout << "";
-  } else {
-    // remove "echo" from tokens
-    tokens.erase(tokens.begin());
-    for (const auto& token : tokens) {
-      std::cout << token << " ";
-    }
     std::cout << "\n";
+    return;
   }
+  for (std::size_t i = 1; i < tokens.size(); ++i) {
+    if (i > 1) std::cout << ' ';
+    std::cout << tokens[i];
+  }
+  std::cout << "\n";
+  return;
 }
 
 ProcessInfo
@@ -129,14 +124,14 @@ look_for_file_matches(const std::string& filename,
 
 void type_command(std::vector<std::string>& tokens, const std::set<std::string_view>& supported_commands) {
   if (tokens.size() < 2) {
-    std::cerr << ": not found";
+    std::cerr << ": not found\n";
     return;
   }
 
-  const std::string& query = tokens.back();
+  const std::string& query = tokens[1];
 
   // check builtins
-  if (supported_commands.find(tokens.back()) != supported_commands.end()) {
+  if (supported_commands.find(query) != supported_commands.end()) {
     std::cout << query << " is a shell builtin\n";
     return;
   }
@@ -199,6 +194,7 @@ void pwd_command() {
 }
 
 void cd_command(std::vector<std::string> tokens) {
+  // TODO: implement a stack to be able to use 'cd -' command
   std::string previous_dir = fs::current_path().string();
   // move to home if no args
   if (tokens.size() == 1) {
@@ -238,8 +234,25 @@ int main() {
     std::cout << "$ ";
     std::string command;
     std::getline(std::cin, command);
-    auto tokens = split(command, ' ');
-    auto fn_name = tokens.front();
+
+    // Use the Tokenizer to parse the input line (supports quotes/escapes)
+    Tokenizer tz(std::move(command));
+    auto views = tz.tokenize();
+    if (tz.has_error()) {
+      std::cerr << tz.error_message() << "\n";
+      continue;
+    }
+    if (views.empty()) {
+      continue; // ignore blank lines
+    }
+
+    // Convert to std::string to keep existing function signatures intact
+    std::vector<std::string> tokens;
+    tokens.reserve(views.size());
+    for (auto v : views) {
+      tokens.emplace_back(v);
+    }
+    std::string fn_name = tokens.front();
 
     // if (supported_commands.find(fn_name) == supported_commands.end()) {
     //   std::cerr << command << ": not found\n";

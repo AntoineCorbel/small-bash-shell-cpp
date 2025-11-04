@@ -178,6 +178,7 @@ void non_builtin_command(std::vector<std::string>& tokens) {
     for (const auto& arg : token_args) {
       args.push_back((char*)arg.c_str());
     }
+    args.push_back(nullptr);
     execvp(process_name.c_str(), args.data()); // execvp looks for the process in PATH
   } else {
     // parent process after child terminated

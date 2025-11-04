@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <cstring>
 #include <charconv>
+#include <cerrno>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -20,6 +21,9 @@ struct ProcessInfo {
   bool executable = false;
   std::string path{};
 };
+
+// Track last child exit status (for potential $?-like behavior later)
+static int g_last_status = 0;
 
 // removed legacy split(); command parsing is handled by Tokenizer
 
@@ -190,8 +194,23 @@ void non_builtin_command(std::vector<std::string>& tokens) {
   } else {
     // parent process after child terminated
     // std::cout << "parent process, pid " << getpid() << "\n";
-    int status;
-    waitpid(pid, &status, 0);
+    int status = 0;
+    pid_t w = -1;
+    do {
+      w = waitpid(pid, &status, 0);
+    } while (w == -1 && errno == EINTR);
+
+    if (w == pid) {
+      int code = 0;
+      if (WIFEXITED(status)) {
+        code = WEXITSTATUS(status);
+      } else if (WIFSIGNALED(status)) {
+        code = 128 + WTERMSIG(status); // common shell convention
+      } else {
+        code = 128;
+      }
+      g_last_status = code;
+    }
   }
   return;
 }

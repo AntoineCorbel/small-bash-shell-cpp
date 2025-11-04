@@ -173,9 +173,8 @@ void non_builtin_command(std::vector<std::string>& tokens) {
   if (pid == 0) {
     // child process
     // std::cout << "child process, pid " << getpid() << "\n";
-    std::vector<std::string> token_args(tokens.begin()+1, tokens.end());
     std::vector<char *> args;
-    for (const auto& arg : token_args) {
+    for (const auto& arg : tokens) {
       args.push_back((char*)arg.c_str());
     }
     args.push_back(nullptr);

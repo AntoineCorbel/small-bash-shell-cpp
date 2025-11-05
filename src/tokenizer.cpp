@@ -1,4 +1,4 @@
-#include "include/tokenizer.h"
+#include "tokenizer.h"
 #include <cctype>
 
 Tokenizer::Tokenizer(std::string line) : m_source(std::move(line)) {}

@@ -12,7 +12,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "include/tokenizer.h"
+#include "tokenizer.h"
 
 namespace fs = std::filesystem;
 

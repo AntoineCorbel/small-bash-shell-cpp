@@ -1,34 +1,60 @@
-[![progress-banner](https://backend.codecrafters.io/progress/shell/df62c55f-eae0-4ba9-8fd8-22ef1aee4de0)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
+Small Bash-Like Shell in C++
 
-This is a starting point for C++ solutions to the
-["Build Your Own Shell" Challenge](https://app.codecrafters.io/courses/shell/overview).
+This repository contains a small, Bash‑like shell implemented in modern C++ (C++23). It parses user input, supports basic quoting/escaping, runs common built‑ins, and executes external programs discovered via the PATH.
 
-In this challenge, you'll build your own POSIX compliant shell that's capable of
-interpreting shell commands, running external programs and builtin commands like
-cd, pwd, echo and more. Along the way, you'll learn about shell command parsing,
-REPLs, builtin commands, and more.
+Demo
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+![demo](docs/demo.gif)
 
-# Passing the first stage
+Features
 
-The entry point for your `shell` implementation is in `src/main.cpp`. Study and
-uncomment the relevant code, and push your changes to pass the first stage:
+- REPL prompt with line‑by‑line command execution
+- Tokenizer with support for whitespace splitting, single/double quotes, and simple escapes
+- Built‑ins: `exit`, `echo`, `type`, `pwd`, `cd` (with `~` expansion)
+- External command execution via PATH lookup (POSIX‑style executability checks)
+- Clear error messages for common cases (non‑existent commands, invalid `cd`, etc.)
 
-```sh
-git commit -am "pass 1st stage" # any msg
-git push origin master
-```
+Build
 
-Time to move on to the next stage!
+- Prerequisites: `cmake` (>= 3.13), a C++23 compiler, and `readline` library
+- Steps:
+  - `mkdir -p build && cd build`
+  - `cmake -DCMAKE_BUILD_TYPE=Release ..`
+  - `cmake --build . -j`
 
-# Stage 2 & beyond
+Run
 
-Note: This section is for stages 2 and beyond.
+- From `build/`: `./shell`
+- Or use the helper script: `./your_program.sh`
 
-1. Ensure you have `cmake` installed locally
-1. Run `./your_program.sh` to run your program, which is implemented in
-   `src/main.cpp`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+Usage Examples
+
+- `echo hello world`
+- `echo "quoted text" and 'single quotes'`
+- `pwd`
+- `cd ~/projects` then `pwd`
+- `type echo` (shows whether a command is a built‑in or external)
+- `ls -la` (runs an external program if found in PATH)
+- `exit` or `exit 2`
+
+Project Layout
+
+- `src/main.cpp` — REPL, built‑ins, PATH search and execution
+- `include/tokenizer.h` / `src/tokenizer.cpp` — input tokenization with quotes/escapes
+- `CMakeLists.txt` — build configuration (links against `readline`)
+
+Notes & Limitations
+
+- Redirection, pipes, variables, globbing, and job control are not implemented.
+- Tokenizer reports unmatched quotes/escapes; improving error ordering vs. command existence is noted as a TODO in `src/tokenizer.cpp`.
+
+License
+
+- This is a learning project; no explicit license is provided. If you’d like to use parts of it, open an issue or reach out.
+
+Contributing a Demo GIF
+
+- Save a short terminal recording as `docs/demo.gif` (suggested: show `echo`, `pwd`, `cd`, an external `ls`, and `exit`).
+- Popular ways to create a GIF:
+  - asciinema + agg: record with `asciinema rec`, then `agg <cast.json> docs/demo.gif`.
+  - peek/ksnip/kap or any screen recorder that exports GIFs.

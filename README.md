@@ -50,11 +50,4 @@ Notes & Limitations
 
 License
 
-- This is a learning project; no explicit license is provided. If you’d like to use parts of it, open an issue or reach out.
-
-Contributing a Demo GIF
-
-- Save a short terminal recording as `docs/demo.gif` (suggested: show `echo`, `pwd`, `cd`, an external `ls`, and `exit`).
-- Popular ways to create a GIF:
-  - asciinema + agg: record with `asciinema rec`, then `agg <cast.json> docs/demo.gif`.
-  - peek/ksnip/kap or any screen recorder that exports GIFs.
+- This is a learning project; no explicit license is provided.

@@ -16,10 +16,10 @@ public:
 private:
   enum class State { Normal, InSingleQuotes, InDoubleQuotes, Escape };
 
-  std::string m_source;
+  std::string m_user_query;
   std::vector<std::string_view> m_tokens;
   std::vector<std::string> m_token_storage;
   std::string m_error;
-  std::string m_current;
+  std::string m_current_token;
   State m_escape_from = State::Normal;
 };
